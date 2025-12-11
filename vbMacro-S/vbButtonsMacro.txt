@@ -1,0 +1,323 @@
+Option Explicit
+
+' ==================================================================
+' CONFIGURATION SECTION (easy to edit)
+' ==================================================================
+Public Const PY_MERGE_SCRIPT As String = "C:\Users\AnandGR\vbMacros\merge_pdf.py"
+Public Const PY_PDF_DIRECTORY As String = "C:\PDFFiles\"
+
+' ----------------------------------------------------------------
+' Create five buttons:
+'   - N1: Filter H Col (reads M1 and filters Column H)  -> N1
+'   - O1: Copy Data    (copies filtered C & E excluding header) -> O1
+'   - P1: Remove Filter (clears filters and shows all rows) -> P1
+'   - Q1: Merge Files (calls external python script with generated param) -> Q1
+'   - R1: RemoveFiles (deletes all PDF files in the merge script folder) -> R1
+' Note: Filter and Remove do NOT show MsgBoxes. Copy shows one MsgBox.
+' ----------------------------------------------------------------
+Public Sub CreateFilterAndClearButtons()
+    Dim ws As Worksheet
+    Set ws = ActiveSheet   ' change to ThisWorkbook.Worksheets("SheetName") if desired
+
+    Dim btn As Shape
+    Dim leftPos As Double, topPos As Double, btnWidth As Double, btnHeight As Double
+
+    ' Delete previous instances if they exist
+    On Error Resume Next
+    ws.Shapes("MyFilterButton").Delete
+    ws.Shapes("MyCopyButton").Delete
+    ws.Shapes("MyClearButton").Delete
+    ws.Shapes("MyMergeButton").Delete
+    ws.Shapes("MyRemoveFilesButton").Delete
+    On Error GoTo 0
+    
+    With ActiveSheet.Columns("M:R")
+        .AutoFit
+        If .ColumnWidth < 12 Then .ColumnWidth = 12
+    End With
+
+    ' Common sizing (use N1 size)
+    btnWidth = ws.Range("N1").Width
+    btnHeight = ws.Range("N1").Height
+
+    ' --- N1: Filter H Col button ---
+    leftPos = ws.Range("N1").Left
+    topPos = ws.Range("N1").Top
+    Set btn = ws.Shapes.AddShape(msoShapeRoundedRectangle, leftPos, topPos, btnWidth, btnHeight)
+    With btn
+        .Name = "MyFilterButton"
+        .TextFrame2.TextRange.Text = "Filter-HCol"
+        .TextFrame2.TextRange.Font.Size = 9
+        .Placement = xlMove
+        .OnAction = "FilterHByM1"
+    End With
+
+    ' --- O1: Copy Data button ---
+    leftPos = ws.Range("O1").Left
+    topPos = ws.Range("O1").Top
+    Set btn = ws.Shapes.AddShape(msoShapeRoundedRectangle, leftPos, topPos, btnWidth, btnHeight)
+    With btn
+        .Name = "MyCopyButton"
+        .TextFrame2.TextRange.Text = "CopyData"
+        .TextFrame2.TextRange.Font.Size = 9
+        .Placement = xlMove
+        .OnAction = "CopyFilteredCAndE"
+    End With
+
+    ' --- P1: Remove Filter button ---
+    leftPos = ws.Range("P1").Left
+    topPos = ws.Range("P1").Top
+    Set btn = ws.Shapes.AddShape(msoShapeRoundedRectangle, leftPos, topPos, btnWidth, btnHeight)
+    With btn
+        .Name = "MyClearButton"
+        .TextFrame2.TextRange.Text = "RemoveFilter"
+        .TextFrame2.TextRange.Font.Size = 9
+        .Placement = xlMove
+        .OnAction = "ClearAllFilters"
+    End With
+
+    ' --- Q1: Merge Files button ---
+    leftPos = ws.Range("Q1").Left
+    topPos = ws.Range("Q1").Top
+    Set btn = ws.Shapes.AddShape(msoShapeRoundedRectangle, leftPos, topPos, btnWidth, btnHeight)
+    With btn
+        .Name = "MyMergeButton"
+        .TextFrame2.TextRange.Text = "MergeFiles"
+        .TextFrame2.TextRange.Font.Size = 9
+        .Placement = xlMove
+        .OnAction = "MergeFilesFromM1"
+    End With
+
+    ' --- R1: Remove Files button ---
+    leftPos = ws.Range("R1").Left
+    topPos = ws.Range("R1").Top
+    Set btn = ws.Shapes.AddShape(msoShapeRoundedRectangle, leftPos, topPos, btnWidth, btnHeight)
+    With btn
+        .Name = "MyRemoveFilesButton"
+        .TextFrame2.TextRange.Text = "RemoveFiles"
+        .TextFrame2.TextRange.Font.Size = 9
+        .Placement = xlMove
+        .OnAction = "RemovePDFFilesInMergeFolder"
+    End With
+
+    MsgBox "Buttons updated: N1=Filter-HCol, O1=CopyData, P1=RemoveFilter, Q1=MergeFiles, R1=RemoveFiles.", vbInformation
+End Sub
+
+' ----------------------------------------------------------------
+' Filter Column H based on the value found in M1
+' (No MsgBox shown per your request)
+' ----------------------------------------------------------------
+Public Sub FilterHByM1()
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+
+    Dim mValue As String
+    mValue = Trim(CStr(ws.Range("M1").Value))
+
+    If mValue = "" Then Exit Sub  ' silently exit if empty
+
+    Dim rng As Range
+    On Error Resume Next
+    Set rng = ws.Range("A1").CurrentRegion   ' adjust if your data doesn't start at A1
+    On Error GoTo 0
+    If rng Is Nothing Then Exit Sub
+
+    ' find the relative field index for Column H
+    Dim firstCol As Long, hCol As Long, fieldIndex As Long
+    firstCol = rng.Columns(1).Column
+    hCol = ws.Range("H1").Column
+    fieldIndex = hCol - firstCol + 1
+    If fieldIndex < 1 Or fieldIndex > rng.Columns.Count Then Exit Sub
+
+    ' Clear existing filters on that range (if any) and apply new filter
+    On Error Resume Next
+    If ws.AutoFilterMode Then
+        rng.AutoFilter
+    End If
+    On Error GoTo 0
+
+    rng.AutoFilter Field:=fieldIndex, Criteria1:=mValue
+    ' No message box per request
+End Sub
+
+' ----------------------------------------------------------------
+' Clear filters and show all rows (No MsgBox shown)
+' ----------------------------------------------------------------
+Public Sub ClearAllFilters()
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+
+    Dim rng As Range
+    On Error Resume Next
+    Set rng = ws.Range("A1").CurrentRegion   ' adjust if needed
+    On Error GoTo 0
+
+    If Not rng Is Nothing Then
+        On Error Resume Next
+        If ws.AutoFilterMode Then
+            rng.AutoFilter
+        End If
+        On Error GoTo 0
+    End If
+
+    On Error Resume Next
+    If ws.FilterMode Then
+        ws.ShowAllData
+    End If
+    On Error GoTo 0
+    ' No message box per request
+End Sub
+
+' ----------------------------------------------------------------
+' Copy filtered data from Column C and Column E (excluding header)
+' - Writes visible rows values to a temp sheet (columns A & B), copies that block,
+'   deletes temp sheet, shows 1 MsgBox "Copied column C and column E data"
+' - Robust: uses absolute row numbers; works even if data doesn't start at A1
+' ----------------------------------------------------------------
+Public Sub CopyFilteredCAndE()
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+
+    Dim dataRegion As Range, dataBody As Range
+    Dim colC As Range, colE As Range
+    Dim visC As Range, visE As Range
+    Dim rngToCopy As Range
+
+    ' Detect data region (with headers in row 1)
+    On Error Resume Next
+    Set dataRegion = ws.Range("A1").CurrentRegion   ' adjust if needed
+    On Error GoTo 0
+
+    If dataRegion Is Nothing Then
+        MsgBox "Couldn't detect data range (CurrentRegion from A1).", vbExclamation
+        Exit Sub
+    End If
+
+    ' Exclude header row (assume header is first row of dataRegion)
+    If dataRegion.Rows.Count < 2 Then
+        MsgBox "No data rows found (only header row exists).", vbExclamation
+        Exit Sub
+    End If
+
+    Set dataBody = dataRegion.Offset(1).Resize(dataRegion.Rows.Count - 1)
+
+    ' Intersect body with Columns C and E
+    Set colC = Intersect(dataBody, ws.Columns("C"))
+    Set colE = Intersect(dataBody, ws.Columns("E"))
+
+    If colC Is Nothing Or colE Is Nothing Then
+        MsgBox "Columns C and/or E are not within the detected data range.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Get only visible (filtered) cells
+    On Error Resume Next
+    Set visC = colC.SpecialCells(xlCellTypeVisible)
+    Set visE = colE.SpecialCells(xlCellTypeVisible)
+    On Error GoTo 0
+
+    If visC Is Nothing Or visE Is Nothing Then
+        MsgBox "No visible rows found to copy. Check filters.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Union of visible cells in C and E
+    Set rngToCopy = Union(visC, visE)
+
+    If rngToCopy Is Nothing Then
+        MsgBox "Nothing to copy from Columns C and E.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Copy to clipboard: two-column selection (C then E for visible rows)
+    rngToCopy.Copy
+
+    MsgBox "Filtered data from Columns C and E (excluding header) copied." & vbCrLf & _
+           "You can now paste it anywhere (it will be two columns).", _
+           vbInformation, "Copy Done"
+End Sub
+
+' ----------------------------------------------------------------
+' Merge files by calling external python script with a generated parameter
+' Parameter format: <M1> + "." + <MM> + "." + <YYYY> + ". U.pdf"
+' Example: M1=ABC , Dec 2025 -> "ABC.12.2025. U.pdf"
+' ----------------------------------------------------------------
+Public Sub MergeFilesFromM1()
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+
+    Dim mVal As String
+    mVal = Trim(CStr(ws.Range("M1").Value))
+    If mVal = "" Then
+        MsgBox "M1 is empty. Please enter a value in M1 before merging.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Updated parameter format per user request:
+    Dim param As String
+    param = mVal & "." & Format(Date, "mm") & "." & Format(Date, "yyyy") & ". " & "U.pdf"
+
+    Dim pyScript As String
+    pyScript = PY_MERGE_SCRIPT
+
+    Dim cmd As String
+    cmd = "cmd /c python " & Chr(34) & pyScript & Chr(34) & " " & Chr(34) & param & Chr(34)
+
+    Dim wsh As Object, execObj As Object
+    Set wsh = CreateObject("WScript.Shell")
+
+    ' Execute and WAIT until Python merge completes
+    Set execObj = wsh.Exec(cmd)
+    Do While execObj.Status = 0
+        DoEvents
+    Loop
+
+    MsgBox "Merge completed for parameter: " & param, vbInformation, "Merge Finished"
+
+    ' "Merge command executed for parameter: " & param, vbInformation, "Merge Started"
+End Sub
+
+' ----------------------------------------------------------------
+' Remove PDF files in merge script folder and report removed files
+' ----------------------------------------------------------------
+Public Sub RemovePDFFilesInMergeFolder()
+    Dim folderPath As String
+    Dim fName As String
+    Dim removed As Collection
+    Set removed = New Collection
+
+    ' derive folder from the configured PY_MERGE_SCRIPT constant
+    folderPath = PY_PDF_DIRECTORY
+    If folderPath = "" Then
+        MsgBox "Could not determine folder from PY_PDF_DIRECTORY. Check configuration.", vbExclamation
+        Exit Sub
+    End If
+
+    ' iterate and delete *.pdf
+    fName = Dir(folderPath & "*.pdf")
+    Do While fName <> ""
+        On Error Resume Next
+        Kill folderPath & fName
+        If Err.Number = 0 Then
+            removed.Add fName
+        End If
+        Err.Clear
+        On Error GoTo 0
+        fName = Dir()
+    Loop
+
+    ' Show removed files
+    Dim msg As String
+    If removed.Count = 0 Then
+        msg = "No PDF files found in: " & folderPath
+    Else
+        msg = "Removed files from: " & folderPath & vbCrLf & vbCrLf
+        Dim i As Long
+        For i = 1 To removed.Count
+            msg = msg & removed(i) & vbCrLf
+        Next i
+    End If
+
+    MsgBox msg, vbInformation, "RemoveFiles Result"
+End Sub
+
