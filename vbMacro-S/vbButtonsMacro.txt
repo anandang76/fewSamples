@@ -100,6 +100,20 @@ Public Sub CreateFilterAndClearButtons()
         .OnAction = "RemovePDFFilesInMergeFolder"
     End With
 
+    ' --- add this inside CreateFilterAndClearButtons (where other buttons are created) ---
+    ' --- S1: Download Files button ---
+    leftPos = ws.Range("S1").Left
+    topPos = ws.Range("S1").Top
+    Set btn = ws.Shapes.AddShape(msoShapeRoundedRectangle, leftPos, topPos, btnWidth, btnHeight)
+    With btn
+        .Name = "MyDownloadButton"
+        .TextFrame2.TextRange.Text = "Download Files"
+        .TextFrame2.TextRange.Font.Size = 9
+        .Placement = xlMove
+        .OnAction = "DownloadFilesFromFilteredE"
+    End With
+
+
     MsgBox "Buttons updated: N1=Filter-HCol, O1=CopyData, P1=RemoveFilter, Q1=MergeFiles, R1=RemoveFiles.", vbInformation
 End Sub
 
@@ -320,4 +334,109 @@ Public Sub RemovePDFFilesInMergeFolder()
 
     MsgBox msg, vbInformation, "RemoveFiles Result"
 End Sub
+
+' ----------------------------------------------------------------
+' Download visible rows' files: URL in Column E, save as Column C.pdf into PY_PDF_DIRECTORY
+' Shows a MsgBox for each downloaded file: "Downloaded from <URL> saved to <filename>"
+' Uses late-binding (no References required)
+' ----------------------------------------------------------------
+Public Sub DownloadFilesFromFilteredE()
+    Dim ws As Worksheet: Set ws = ActiveSheet
+    Dim dataRegion As Range
+    Dim firstRow As Long, lastRow As Long
+    Dim r As Long
+    Dim url As String, baseName As String, outFile As String
+    Dim fso As Object, folderPath As String
+
+    On Error Resume Next
+    Set dataRegion = ws.Range("A1").CurrentRegion
+    On Error GoTo 0
+
+    If dataRegion Is Nothing Then
+        MsgBox "Couldn't detect data range (CurrentRegion from A1).", vbExclamation
+        Exit Sub
+    End If
+
+    If dataRegion.Rows.Count < 2 Then
+        MsgBox "No data rows found (only header row exists).", vbExclamation
+        Exit Sub
+    End If
+
+    firstRow = dataRegion.Row + 1
+    lastRow = dataRegion.Row + dataRegion.Rows.Count - 1
+
+    ' Ensure folder path ends with backslash
+    folderPath = PY_PDF_DIRECTORY
+    If Right(folderPath, 1) <> "\" Then folderPath = folderPath & "\"
+
+    ' Create folder if it doesn't exist
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FolderExists(folderPath) Then
+        On Error Resume Next
+        fso.CreateFolder folderPath
+        If Err.Number <> 0 Then
+            MsgBox "Could not create folder: " & folderPath, vbExclamation
+            Exit Sub
+        End If
+        On Error GoTo 0
+    End If
+
+    Application.ScreenUpdating = False
+
+    For r = firstRow To lastRow
+        ' Only process visible (i.e. not hidden by filter) rows
+        If Not ws.Rows(r).Hidden Then
+            url = Trim(CStr(ws.Cells(r, "E").Value))
+            baseName = Trim(CStr(ws.Cells(r, "C").Value))
+
+            If url <> "" And baseName <> "" Then
+                outFile = folderPath & baseName & ".pdf"
+                On Error Resume Next
+                Dim xmlhttp As Object, adoSt As Object
+                Set xmlhttp = CreateObject("MSXML2.XMLHTTP")
+                xmlhttp.Open "GET", url, False
+                xmlhttp.send
+
+                If Err.Number <> 0 Then
+                    MsgBox "Error requesting URL: " & url & vbCrLf & "Row: " & r, vbExclamation
+                    Err.Clear
+                Else
+                    If xmlhttp.Status = 200 Then
+                        Set adoSt = CreateObject("ADODB.Stream")
+                        adoSt.Type = 1 ' adTypeBinary
+                        adoSt.Open
+                        adoSt.Write xmlhttp.responseBody
+                        ' Save to file (overwrite if exists)
+                        On Error Resume Next
+                        If fso.FileExists(outFile) Then
+                            fso.DeleteFile outFile, True
+                        End If
+                        adoSt.SaveToFile outFile, 2 ' adSaveCreateOverWrite
+                        adoSt.Close
+                        MsgBox "Downloaded from " & url & vbCrLf & "Saved to " & outFile, vbInformation
+                    Else
+                        MsgBox "Failed to download (HTTP " & xmlhttp.Status & "): " & url, vbExclamation
+                    End If
+                    On Error GoTo 0
+                End If
+
+                ' cleanup
+                If Not adoSt Is Nothing Then Set adoSt = Nothing
+                If Not xmlhttp Is Nothing Then Set xmlhttp = Nothing
+            Else
+                ' either URL or filename missing; skip (optionally show message)
+                If url = "" Then
+                    ' skip blank URL
+                ElseIf baseName = "" Then
+                    MsgBox "Row " & r & " has URL but no filename in Column C. Skipping.", vbExclamation
+                End If
+            End If
+        End If
+    Next r
+
+    Application.ScreenUpdating = True
+
+    MsgBox "Download loop finished.", vbInformation
+End Sub
+
 
