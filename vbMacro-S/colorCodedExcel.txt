@@ -1,0 +1,331 @@
+Option Explicit
+
+Sub ColorBlocksByCode()
+
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim row As Long
+    Dim startRow As Long
+    Dim endRow As Long
+    Dim codeValue As String
+    Dim blockColor As Long
+    Dim rng As Range
+    
+    '=== Color constants ===
+    Dim clrLightGreen As Long
+    Dim clrOrange As Long
+    Dim clrRed As Long
+    Dim clrRamarBlue As Long
+    Dim clrNavyBlue As Long
+    
+    clrLightGreen = RGB(198, 239, 206)
+    clrOrange = RGB(255, 192, 0)
+    clrRed = RGB(255, 0, 0)
+    clrRamarBlue = RGB(0, 112, 192)
+    clrNavyBlue = RGB(0, 0, 128)
+    
+    '=== Code -> Color dictionary ===
+    Dim codeColors As Object
+    Set codeColors = CreateObject("Scripting.Dictionary")
+    
+    ' Track which colors were used (key = color value)
+    Dim usedColors As Object
+    Set usedColors = CreateObject("Scripting.Dictionary")
+    
+    '===============================
+    ' Light Green (55020–55035)
+    '===============================
+    codeColors("55020-000") = clrLightGreen
+    codeColors("55021-000") = clrLightGreen
+    codeColors("55022-000") = clrLightGreen
+    codeColors("55023-000") = clrLightGreen
+    codeColors("55024-000") = clrLightGreen
+    codeColors("55026-000") = clrLightGreen
+    codeColors("55027-000") = clrLightGreen
+    codeColors("55028-000") = clrLightGreen
+    codeColors("55029-000") = clrLightGreen
+    codeColors("55030-000") = clrLightGreen
+    codeColors("55031-000") = clrLightGreen
+    codeColors("55032-000") = clrLightGreen
+    codeColors("55035-000") = clrLightGreen
+    
+    '===============================
+    ' Orange (57255–57450)
+    '===============================
+    codeColors("57255-000") = clrOrange
+    codeColors("57350-000") = clrOrange
+    codeColors("57410-000") = clrOrange
+    codeColors("57450-000") = clrOrange
+    
+    '===============================
+    ' Red (61051–61055)
+    '===============================
+    codeColors("61051-000") = clrRed
+    codeColors("61052-000") = clrRed
+    codeColors("61053-000") = clrRed
+    codeColors("61054-000") = clrRed
+    codeColors("61055-000") = clrRed
+    
+    '===============================
+    ' Ramar Blue (63061–63103)
+    '===============================
+    codeColors("63061-000") = clrRamarBlue
+    codeColors("55048-000") = clrRamarBlue
+    codeColors("63015-000") = clrRamarBlue
+    codeColors("63014-000") = clrRamarBlue
+    codeColors("63016-000") = clrRamarBlue
+    codeColors("63051-000") = clrRamarBlue
+    codeColors("63013-000") = clrRamarBlue
+    codeColors("63103-000") = clrRamarBlue
+    
+    '===============================
+    ' Navy Blue (64002–64075 etc.)
+    '===============================
+    codeColors("64002-000") = clrNavyBlue
+    codeColors("64003-000") = clrNavyBlue
+    codeColors("77005-000") = clrNavyBlue
+    codeColors("64004-000") = clrNavyBlue
+    codeColors("65001-000") = clrNavyBlue
+    codeColors("64183-000") = clrNavyBlue
+    codeColors("64005-000") = clrNavyBlue
+    codeColors("65019-000") = clrNavyBlue
+    codeColors("64145-000") = clrNavyBlue
+    codeColors("64100-000") = clrNavyBlue
+    codeColors("64101-000") = clrNavyBlue
+    codeColors("63002-000") = clrNavyBlue
+    codeColors("61009-000") = clrNavyBlue
+    codeColors("65601-000") = clrNavyBlue
+    codeColors("61010-000") = clrNavyBlue
+    codeColors("64008-000") = clrNavyBlue
+    codeColors("64009-000") = clrNavyBlue
+    codeColors("65021-000") = clrNavyBlue
+    codeColors("65022-000") = clrNavyBlue
+    codeColors("57370-000") = clrNavyBlue
+    codeColors("64010-000") = clrNavyBlue
+    codeColors("57070-000") = clrNavyBlue
+    codeColors("64020-000") = clrNavyBlue
+    codeColors("64022-000") = clrNavyBlue
+    codeColors("57080-000") = clrNavyBlue
+    codeColors("64024-000") = clrNavyBlue
+    codeColors("57085-000") = clrNavyBlue
+    codeColors("64111-000") = clrNavyBlue
+    codeColors("64028-000") = clrNavyBlue
+    codeColors("64029-000") = clrNavyBlue
+    codeColors("65018-000") = clrNavyBlue
+    codeColors("64030-000") = clrNavyBlue
+    codeColors("64108-000") = clrNavyBlue
+    codeColors("64109-000") = clrNavyBlue
+    codeColors("61001-000") = clrNavyBlue
+    codeColors("64150-002") = clrNavyBlue
+    codeColors("64031-000") = clrNavyBlue
+    codeColors("64039-000") = clrNavyBlue
+    codeColors("64032-000") = clrNavyBlue
+    codeColors("64034-000") = clrNavyBlue
+    codeColors("64036-000") = clrNavyBlue
+    codeColors("64047-000") = clrNavyBlue
+    codeColors("65635-000") = clrNavyBlue
+    codeColors("64048-000") = clrNavyBlue
+    codeColors("57217-000") = clrNavyBlue
+    codeColors("64040-000") = clrNavyBlue
+    codeColors("64041-000") = clrNavyBlue
+    codeColors("65811-000") = clrNavyBlue
+    codeColors("65603-000") = clrNavyBlue
+    codeColors("65036-000") = clrNavyBlue
+    codeColors("64052-000") = clrNavyBlue
+    codeColors("65631-000") = clrNavyBlue
+    codeColors("61002-000") = clrNavyBlue
+    codeColors("64053-000") = clrNavyBlue
+    codeColors("65630-000") = clrNavyBlue
+    codeColors("63005-000") = clrNavyBlue
+    codeColors("65604-000") = clrNavyBlue
+    codeColors("64054-000") = clrNavyBlue
+    codeColors("64055-000") = clrNavyBlue
+    codeColors("64056-000") = clrNavyBlue
+    codeColors("64104-000") = clrNavyBlue
+    codeColors("65636-000") = clrNavyBlue
+    codeColors("64058-000") = clrNavyBlue
+    codeColors("64088-000") = clrNavyBlue
+    codeColors("61003-000") = clrNavyBlue
+    codeColors("64059-000") = clrNavyBlue
+    codeColors("64060-000") = clrNavyBlue
+    codeColors("64105-000") = clrNavyBlue
+    codeColors("64061-000") = clrNavyBlue
+    codeColors("57350-000") = clrNavyBlue
+    codeColors("57353-000") = clrNavyBlue
+    codeColors("64063-000") = clrNavyBlue
+    codeColors("64064-000") = clrNavyBlue
+    codeColors("64065-000") = clrNavyBlue
+    codeColors("64066-000") = clrNavyBlue
+    codeColors("64067-000") = clrNavyBlue
+    codeColors("64195-000") = clrNavyBlue
+    codeColors("64301-000") = clrNavyBlue
+    codeColors("64013-000") = clrNavyBlue
+    codeColors("57410-000") = clrNavyBlue
+    codeColors("55039-000") = clrNavyBlue
+    codeColors("64073-000") = clrNavyBlue
+    codeColors("64074-000") = clrNavyBlue
+    codeColors("57450-000") = clrNavyBlue
+    codeColors("64075-000") = clrNavyBlue
+
+    Set ws = ActiveSheet
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    Application.ScreenUpdating = False
+    
+    '========================
+    ' Color all blocks
+    '========================
+    row = 1
+    Do While row <= lastRow
+        
+        codeValue = Trim$(CStr(ws.Cells(row, "A").Value))
+        
+        If codeColors.Exists(codeValue) Then
+            
+            blockColor = codeColors(codeValue)
+            startRow = row
+            endRow = startRow
+            
+            ' Block ends where Column A becomes blank
+            Do While endRow <= lastRow And Trim$(CStr(ws.Cells(endRow, "A").Value)) <> ""
+                endRow = endRow + 1
+            Loop
+            endRow = endRow - 1    ' last non-blank row in this block
+            
+            ' Include ONE blank separator row below the block, if present
+            If endRow < lastRow And Trim$(CStr(ws.Cells(endRow + 1, "A").Value)) = "" Then
+                endRow = endRow + 1
+            End If
+            
+            If endRow >= startRow Then
+                ' Color columns A to R (1 to 18)
+                Set rng = ws.Range(ws.Cells(startRow, "A"), ws.Cells(endRow, "R"))
+                rng.Interior.Color = blockColor
+                
+                ' If blue background → white font; otherwise black
+                If blockColor = clrRamarBlue Or blockColor = clrNavyBlue Then
+                    rng.Font.Color = vbWhite
+                Else
+                    rng.Font.Color = vbBlack
+                End If
+                
+                ' Remember this color was used
+                If Not usedColors.Exists(blockColor) Then
+                    usedColors.Add blockColor, True
+                End If
+            End If
+            
+            row = endRow + 1
+        
+        Else
+            row = row + 1
+        End If
+    
+    Loop
+    
+    '========================
+    ' Remove old legend block
+    '========================
+    Dim lastUsed As Long
+    Dim r As Long
+    Dim legendStart As Long
+    
+    lastUsed = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    legendStart = 0
+    
+    ' Find the last "Legend:" in column A
+    For r = lastUsed To 1 Step -1
+        If Trim$(CStr(ws.Cells(r, "A").Value)) = "Legend:" Then
+            legendStart = r
+            Exit For
+        End If
+    Next r
+    
+    ' If found, delete from Legend: to bottom
+    If legendStart > 0 Then
+        ws.Rows(legendStart & ":" & lastUsed).Delete xlShiftUp
+    End If
+    
+    '========================
+    ' Add legend at the end
+    '========================
+    Dim legendRow As Long
+    lastUsed = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    legendRow = lastUsed + 2   ' one blank row
+    
+    ' Legend title
+    ws.Cells(legendRow, "A").Value = "Legend:"
+    ws.Cells(legendRow, "A").Font.Bold = True
+    legendRow = legendRow + 1
+    
+    ' Always show Transfers & Escrows (no fill)
+    With ws.Cells(legendRow, "A")
+        .Value = "Transfers & Escrows"
+        .Interior.ColorIndex = xlNone
+        .Font.Color = vbBlack
+        .Font.Bold = True
+    End With
+    legendRow = legendRow + 1
+    
+    ' Then only show colors actually used, in fixed order
+    
+    ' Payroll – Light Green
+    If usedColors.Exists(clrLightGreen) Then
+        With ws.Cells(legendRow, "A")
+            .Value = "Payroll"
+            .Interior.Color = clrLightGreen
+            .Font.Color = vbBlack
+            .Font.Bold = True
+        End With
+        legendRow = legendRow + 1
+    End If
+    
+    ' Contracts – Orange
+    If usedColors.Exists(clrOrange) Then
+        With ws.Cells(legendRow, "A")
+            .Value = "Contracts"
+            .Interior.Color = clrOrange
+            .Font.Color = vbBlack
+            .Font.Bold = True
+        End With
+        legendRow = legendRow + 1
+    End If
+    
+    ' Utilities – Red
+    If usedColors.Exists(clrRed) Then
+        With ws.Cells(legendRow, "A")
+            .Value = "Utilities"
+            .Interior.Color = clrRed
+            .Font.Color = vbBlack
+            .Font.Bold = True
+        End With
+        legendRow = legendRow + 1
+    End If
+    
+    ' Professional – Ramar Blue
+    If usedColors.Exists(clrRamarBlue) Then
+        With ws.Cells(legendRow, "A")
+            .Value = "Professional"
+            .Interior.Color = clrRamarBlue
+            .Font.Color = vbWhite
+            .Font.Bold = True
+        End With
+        legendRow = legendRow + 1
+    End If
+    
+    ' R&M – Navy Blue
+    If usedColors.Exists(clrNavyBlue) Then
+        With ws.Cells(legendRow, "A")
+            .Value = "R&M"
+            .Interior.Color = clrNavyBlue
+            .Font.Color = vbWhite
+            .Font.Bold = True
+        End With
+        legendRow = legendRow + 1
+    End If
+    
+    Application.ScreenUpdating = True
+    
+    MsgBox "Coloring complete with legend.", vbInformation
+
+End Sub
